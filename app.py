@@ -108,8 +108,10 @@ def server_fred_api_key() -> str:
     return secret_key or env_key
 
 
-@st.cache_data(ttl=900, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def cached_live_panel(api_key: str = ""):
+    # Kept as an optional maintenance fallback, but normal conference navigation
+    # never calls FRED directly.  A scheduled GitHub Action refreshes the CSV daily.
     return build_live_raw_panel(cached_history(), train_months=TRAIN_MONTHS, api_key=api_key or None)
 
 
@@ -195,8 +197,8 @@ def render_recent_forecast_chart(result: dict, target: str, price_source: pd.Dat
 def render_market_trends():
     st.markdown("## Market trends")
     st.markdown(
-        '<div class="small">Explore the latest completed daily index history used for conference context. '
-        'The app refreshes FRED automatically; visitors do not need an API key.</div>',
+        "<div class='small'>Explore the latest completed daily index history stored in the app's FRED snapshot. "
+        "The snapshot is refreshed automatically by the repository on a daily schedule, so this page opens instantly and does not wait on a live FRED request.</div>",
         unsafe_allow_html=True,
     )
     a, b = st.columns(2)
@@ -205,34 +207,29 @@ def render_market_trends():
     with b:
         period = st.selectbox("Time window", [30, 90, 252, 756], index=1, format_func=lambda n: {30:"30 trading days",90:"90 trading days",252:"1 year",756:"3 years"}[n], key="trend_period")
 
-    try:
-        panel = cached_live_panel(server_fred_api_key())
-        price = target_price_history(panel, target).tail(int(period)).copy()
-        if len(price) < 2:
-            st.info("Not enough observations are available for this view.")
-            return
-        price["Daily return"] = price["Close"].pct_change() * 100
-        change = price["Close"].iloc[-1] / price["Close"].iloc[0] - 1
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            metric_card("Latest close", f"{price['Close'].iloc[-1]:,.2f}", str(price["Date"].iloc[-1].date()))
-        with c2:
-            metric_card("Window return", f"{change:+.2%}", f"{len(price)} observations")
-        with c3:
-            metric_card("Data source", "FRED", "Latest completed daily observation")
+    panel = cached_history()
+    price = target_price_history(panel, target).tail(int(period)).copy()
+    if len(price) < 2:
+        st.info("Not enough observations are available for this view.")
+        return
+    price["Daily return"] = price["Close"].pct_change() * 100
+    change = price["Close"].iloc[-1] / price["Close"].iloc[0] - 1
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        metric_card("Latest close", f"{price['Close'].iloc[-1]:,.2f}", str(price["Date"].iloc[-1].date()))
+    with c2:
+        metric_card("Window return", f"{change:+.2%}", f"{len(price)} observations")
+    with c3:
+        metric_card("Data source", "FRED snapshot", "Daily repository refresh")
 
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.07, row_heights=[0.76, 0.24])
-        fig.add_trace(go.Scatter(x=price["Date"], y=price["Close"], mode="lines", name="Close", line=dict(width=3)), row=1, col=1)
-        fig.add_trace(go.Bar(x=price["Date"], y=price["Daily return"].fillna(0), name="Daily % change", showlegend=False), row=2, col=1)
-        fig.update_layout(title=f"{target_name(target)} time-series trend", height=570, margin=dict(l=10, r=10, t=55, b=10), hovermode="x unified", showlegend=False)
-        fig.update_yaxes(title_text="Index close", row=1, col=1)
-        fig.update_yaxes(title_text="Daily %", row=2, col=1)
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("FRED daily index observations are not intraday quotes. During an open trading session, the latest completed close will normally be the previous trading day's value.")
-    except Exception as exc:
-        st.warning("The live trend could not be refreshed right now. The historical research archive remains available in the Historical Demo tab.")
-        with st.expander("Technical detail"):
-            st.code(str(exc))
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.07, row_heights=[0.76, 0.24])
+    fig.add_trace(go.Scatter(x=price["Date"], y=price["Close"], mode="lines", name="Close", line=dict(width=3)), row=1, col=1)
+    fig.add_trace(go.Bar(x=price["Date"], y=price["Daily return"].fillna(0), name="Daily % change", showlegend=False), row=2, col=1)
+    fig.update_layout(title=f"{target_name(target)} time-series trend", height=570, margin=dict(l=10, r=10, t=55, b=10), hovermode="x unified", showlegend=False)
+    fig.update_yaxes(title_text="Index close", row=1, col=1)
+    fig.update_yaxes(title_text="Daily %", row=2, col=1)
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption("FRED daily index observations are not intraday quotes. The stored snapshot is refreshed after the U.S. trading day; the latest completed close may therefore be the previous trading day's value.")
 
 
 
@@ -325,7 +322,13 @@ def render_result(result: dict, target: str, lead: int, historical: bool = False
 
 def render_live():
     st.markdown("## Try the model now")
-    st.markdown('<div class="small">Designed for conference use: choose an index and forecast horizon, then run the published stacked-ensemble framework. The 5-day horizon is selected by default because it performed best in the 2025 rolling evaluation. Market data are refreshed automatically from FRED; visitors do not need an API key.</div>', unsafe_allow_html=True)
+    history = cached_history()
+    latest_snapshot = pd.to_datetime(history["Date"]).max()
+    st.markdown(
+        f'<div class="small">Designed for conference use: choose an index and forecast horizon, then run the published stacked-ensemble framework. '
+        f'The app reads a locally cached FRED snapshot so the forecast starts immediately. Current snapshot through <b>{latest_snapshot.date()}</b>.</div>',
+        unsafe_allow_html=True,
+    )
     a, b = st.columns(2)
     with a:
         target = st.selectbox("Index", ALLOWED_TARGETS, index=ALLOWED_TARGETS.index(DEFAULT_TARGET), format_func=target_name, key="live_target")
@@ -334,22 +337,26 @@ def render_live():
 
     with st.expander("How is the latest data obtained?"):
         st.markdown(
-            "The deployed app automatically requests the newest available daily observations from **Federal Reserve Economic Data (FRED)**. "
-            "A private server-side FRED API key is used when configured; otherwise the app falls back to FRED's public CSV endpoint. "
-            "No visitor credentials are required. Because these are daily observations rather than intraday quotes, the latest completed index close may be the previous trading day while the market is still open."
+            "A scheduled GitHub workflow refreshes the app's **FRED snapshot** after each U.S. trading day. "
+            "The Streamlit app then reads that snapshot locally instead of making several FRED requests while a visitor is waiting. "
+            "This keeps the conference demo fast and reproducible while still using the newest completed daily FRED observations available at the scheduled refresh. "
+            "No visitor credentials are required."
         )
 
     if st.button("Generate latest forecast", type="primary", use_container_width=True):
-        with st.spinner("Refreshing market data and fitting the ensemble…"):
+        with st.spinner("Fitting the ensemble to the latest FRED snapshot…"):
             try:
-                panel = cached_live_panel(server_fred_api_key())
+                panel = history
                 result = live_forecast(panel, target, int(lead))
                 age = (pd.Timestamp.today().normalize() - result["runtime"].normalize()).days
                 if age > 4:
-                    st.warning(f"The latest usable {target_name(target)} close in the refreshed source is {result['runtime'].date()}. Interpret this as a dated demonstration, not a current-market call.")
+                    st.warning(
+                        f"The stored FRED snapshot currently ends at {result['runtime'].date()}. "
+                        "Run the repository's Refresh FRED snapshot workflow before using this as a current-market demonstration."
+                    )
                 render_result(result, target, int(lead), historical=False, price_source=panel)
             except Exception as exc:
-                st.error("Live refresh is temporarily unavailable. The historical demo and published evidence below remain available.")
+                st.error("The forecast could not be generated from the stored FRED snapshot.")
                 with st.expander("Technical detail"):
                     st.code(str(exc))
 
@@ -589,10 +596,10 @@ def render_method():
     )
     st.markdown("### Data")
     st.markdown(
-        "The model uses market and macroeconomic series from Federal Reserve Economic Data (FRED), including index "
-        "levels, VIX, Treasury yields, oil prices, policy rates, unemployment, industrial production, consumer sentiment, "
-        "money supply, inflation, and housing-price information. The deployed app can use a server-side FRED API key when configured, "
-        "with a public FRED CSV fallback so visitors never need to enter credentials."
+        "The research archive contains market and macroeconomic series from Federal Reserve Economic Data (FRED). "
+        "The conference deployment uses the paper's core live specification: S&P 500, Dow Jones Industrial Average, VIX, "
+        "10-year Treasury yield, WTI oil price, federal funds rate, and unemployment. A scheduled repository workflow refreshes "
+        "these inputs daily and the public Streamlit app reads the resulting snapshot locally, avoiding slow external calls during a presentation."
     )
     st.markdown("### News context")
     st.markdown("The Market News tab retrieves recent market, macroeconomic, and geopolitical headlines for interpretation only. News is deliberately kept outside the forecasting feature set so the conference app remains aligned with the published model.")

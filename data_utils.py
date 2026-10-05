@@ -15,6 +15,13 @@ def load_local_history() -> pd.DataFrame:
         if col != "Date":
             df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df[df["Date"].dt.dayofweek < 5].copy().reset_index(drop=True)
+
+    # FRED macro/context series have mixed reporting frequencies.  The production
+    # snapshot is aligned to market sessions, so carry the most recently available
+    # non-target observation forward exactly as the original research loader did.
+    non_targets = [c for c in df.columns if c not in {"Date", *TARGET_SERIES}]
+    if non_targets:
+        df[non_targets] = df[non_targets].ffill().bfill()
     return df
 
 
@@ -34,7 +41,7 @@ def fetch_fred_series(
     start_date: str,
     end_date: str,
     api_key: str | None = None,
-    timeout: int = 30,
+    timeout: int = 8,
 ) -> pd.DataFrame:
     """Fetch one FRED series. Prefer the authenticated API; fall back to public graph CSV."""
     key = (api_key or "").strip()

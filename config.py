@@ -28,8 +28,9 @@ TOP_K = 40
 BASE_MODELS = ["et", "rf", "xgb_native"]
 
 FRED_SERIES = [
-    "SP500", "DJIA", "VIXCLS", "DCOILWTICO", "DGS10",
-    "UNRATE", "FEDFUNDS", "INDPRO", "CSUSHPINSA", "UMCSENT", "M2SL", "CPIAUCSL",
+    # Core live/deployment inputs used by the conference specification.
+    # The broader frozen research archive still contains the additional paper variables.
+    "SP500", "DJIA", "VIXCLS", "DCOILWTICO", "DGS10", "UNRATE", "FEDFUNDS",
 ]
 TARGET_SERIES = {"SP500", "DJIA"}
 

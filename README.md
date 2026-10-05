@@ -65,3 +65,9 @@ The Market News tab retrieves recent Google News RSS results related to the sele
 - Changed the active-tab styling from dark/navy to a light FinTech-orange treatment.
 - Added an in-app explanation of how fresh FRED data are obtained and why the latest completed daily close can be the previous trading day during market hours.
 - Visitors still never need to enter an API key. A private server-side `FRED_API_KEY` is used when configured; otherwise FRED's public CSV endpoint is used.
+
+## Fast-cloud data refresh (V5)
+
+V5 does not make multiple FRED calls while conference visitors navigate the app. A GitHub Actions workflow (`.github/workflows/refresh_fred.yml`) refreshes the core FRED snapshot after each U.S. trading day. The Streamlit app reads the updated CSV locally, which makes Live Demo and Market Trends load immediately.
+
+Add a repository Actions secret named `FRED_API_KEY`, then run **Actions → Refresh FRED snapshot → Run workflow** once after deployment. The same workflow then runs automatically at 02:00 UTC Tuesday–Saturday.
