@@ -44,7 +44,7 @@ st.markdown(
 .stApp { background: var(--soft); color: var(--ink); }
 .main .block-container { max-width: 1120px; padding-top: 1.2rem; padding-bottom: 2rem; }
 [data-testid="stHeader"] { background: rgba(0,0,0,0); }
-h1,h2,h3,h4,p,label,span,div { color: var(--ink); }
+h1,h2,h3,h4,p,label { color: var(--ink); }
 .hero { background: linear-gradient(135deg,#fff 0%,#FFF8F2 100%); border:1px solid var(--line); border-radius:24px; padding:24px 26px; box-shadow:0 12px 36px rgba(17,24,39,.06); margin-bottom:16px; }
 .eyebrow { color:var(--brand)!important; font-weight:900; letter-spacing:.05em; text-transform:uppercase; font-size:.78rem; }
 .hero-title { font-size:2.15rem; line-height:1.08; font-weight:900; margin:.25rem 0 .4rem 0; color:var(--navy)!important; }
@@ -70,6 +70,10 @@ div[data-testid="stMetric"] { background:#fff; border:1px solid var(--line); bor
 .stTabs [data-baseweb="tab"][aria-selected="true"] { background:#FFF0E4!important; border-color:#F47B20!important; box-shadow:inset 0 -3px 0 #F47B20; }
 .stTabs [data-baseweb="tab"][aria-selected="true"] p,
 .stTabs [data-baseweb="tab"][aria-selected="true"] span { color:#8A3B06!important; }
+div[role="radiogroup"] { gap:6px; flex-wrap:wrap; }
+div[role="radiogroup"] label { background:#fff; border:1px solid var(--line); border-radius:10px; padding:7px 11px; margin:0; }
+div[role="radiogroup"] label:has(input:checked) { background:#FFF0E4; border-color:#F47B20; box-shadow:inset 0 -3px 0 #F47B20; }
+div[role="radiogroup"] label:has(input:checked) p { color:#8A3B06!important; font-weight:900; }
 .news-card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:15px 16px; margin-bottom:12px; box-shadow:0 4px 16px rgba(17,24,39,.04); }
 .news-title { font-size:1.04rem; font-weight:900; line-height:1.38; margin-bottom:5px; color:var(--navy)!important; }
 .news-meta { color:var(--muted)!important; font-size:.84rem; font-weight:700; margin-bottom:7px; }
@@ -509,18 +513,21 @@ def render_historical():
         target = st.selectbox("Index", ALLOWED_TARGETS, format_func=target_name, key="hist_target")
     with b:
         lead = st.selectbox("Forecast horizon", ALLOWED_LEADS, index=2, format_func=lambda x: f"{x} trading day{'s' if x != 1 else ''}", key="hist_lead")
-    supervised = cached_supervised(target, int(lead))
-    days = pd.to_datetime(supervised["run_day"]).sort_values().drop_duplicates()
+    # Keep page entry lightweight on Streamlit Community Cloud.
+    # The expensive supervised-data build runs only after the visitor clicks the button.
+    history = cached_history()
+    days = pd.to_datetime(history.loc[history[target].notna(), "Date"]).sort_values().drop_duplicates()
     default_idx = max(0, len(days) - 45)
     chosen = st.date_input("Runtime date", value=days.iloc[default_idx].date(), min_value=days.iloc[0].date(), max_value=days.iloc[-1].date())
-    runtime = nearest_runtime(supervised, chosen)
-    if runtime.date() != pd.Timestamp(chosen).date():
-        st.info(f"Using the nearest available market date on or before your choice: {runtime.date()}.")
     if st.button("Run historical case", use_container_width=True):
-        with st.spinner("Refitting the ensemble for this historical cutoff…"):
+        with st.spinner("Preparing the historical cutoff and refitting the ensemble…"):
             try:
-                result = historical_evaluation(cached_history(), target, int(lead), runtime)
-                render_result(result, target, int(lead), historical=True, price_source=cached_history())
+                supervised = cached_supervised(target, int(lead))
+                runtime = nearest_runtime(supervised, chosen)
+                if runtime.date() != pd.Timestamp(chosen).date():
+                    st.info(f"Using the nearest available market date on or before your choice: {runtime.date()}.")
+                result = historical_evaluation(history, target, int(lead), runtime)
+                render_result(result, target, int(lead), historical=True, price_source=history)
             except Exception as exc:
                 st.error(str(exc))
 
@@ -608,18 +615,25 @@ def main():
 
     st.markdown('<div class="disclaimer"><b>Research demonstration — not investment advice.</b> The app presents model signals and uncertainty-aware context rather than direct trading instructions.</div>', unsafe_allow_html=True)
 
-    tab_live, tab_trends, tab_news, tab_hist, tab_evidence, tab_method = st.tabs(["Live Demo", "Market Trends", "Market News", "Historical Demo", "Published Evidence", "Method & About"])
-    with tab_live:
+    # IMPORTANT FOR CLOUD DEPLOYMENT:
+    # Streamlit tabs execute every tab body by default. That caused the deployed app
+    # to perform FRED network calls and historical feature construction before the
+    # first screen could render. A horizontal navigation control preserves the same
+    # conference experience while executing only the selected page.
+    pages = ["Live Demo", "Market Trends", "Market News", "Historical Demo", "Published Evidence", "Method & About"]
+    page = st.radio("Section", pages, horizontal=True, label_visibility="collapsed", key="top_navigation")
+
+    if page == "Live Demo":
         render_live()
-    with tab_trends:
+    elif page == "Market Trends":
         render_market_trends()
-    with tab_news:
+    elif page == "Market News":
         render_market_news()
-    with tab_hist:
+    elif page == "Historical Demo":
         render_historical()
-    with tab_evidence:
+    elif page == "Published Evidence":
         render_evidence()
-    with tab_method:
+    else:
         render_method()
 
     st.markdown(
