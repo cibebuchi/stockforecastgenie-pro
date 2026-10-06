@@ -1,38 +1,27 @@
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_PATH = BASE_DIR / "market_daily_data_2015_to_present.csv"
-STACK_SCRIPT_PATH = BASE_DIR / "stock_stack_upgraded_matched_naive_with_return.py"
+MODELS_DIR = BASE_DIR / "models"
 LOGO_PATH = BASE_DIR / "logo.png"
 
 APP_TITLE = "StockForecastGenie Pro"
-APP_SUBTITLE = "Volatility-aware machine-learning decision support for short-horizon equity-index forecasting"
+APP_SUBTITLE = "Pretrained-model decision support for short-horizon U.S. equity-index forecasting"
 CONFERENCE_NAME = "7th National HBCU Blockchain, FinTech, and AI Conference"
 CONFERENCE_LOCATION = "Nashville, Tennessee"
 CONFERENCE_DATES = "November 8–10, 2026"
 PAPER_URL = "https://fintech.morgan.edu/publications/2026-conference-proceedings/paper-05/"
 DOI_URL = "https://doi.org/10.68414/NKSA6726"
+FRED_TERMS_URL = "https://fred.stlouisfed.org/docs/api/terms_of_use.html"
+FRED_KEY_URL = "https://fredaccount.stlouisfed.org/apikeys"
 
-TARGET_LABELS = {
-    "SP500": "S&P 500",
-    "DJIA": "Dow Jones Industrial Average",
+TARGETS = {
+    "SP500": {"label": "S&P 500", "fred_series": "SP500", "yahoo_symbol": "^GSPC"},
+    "DJIA": {"label": "Dow Jones Industrial Average", "fred_series": "DJIA", "yahoo_symbol": "^DJI"},
 }
-ALLOWED_TARGETS = ["SP500", "DJIA"]
 ALLOWED_LEADS = [1, 3, 5]
 DEFAULT_TARGET = "SP500"
 DEFAULT_LEAD = 5
-TRAIN_MONTHS = 6
-OBJECTIVE = "gain"
-FEATURE_SET = "core"
-TOP_K = 40
-BASE_MODELS = ["et", "rf", "xgb_native"]
-
-FRED_SERIES = [
-    # Core live/deployment inputs used by the conference specification.
-    # The broader frozen research archive still contains the additional paper variables.
-    "SP500", "DJIA", "VIXCLS", "DCOILWTICO", "DGS10", "UNRATE", "FEDFUNDS",
-]
-TARGET_SERIES = {"SP500", "DJIA"}
+FRED_LOOKBACK_DAYS = 540
 
 PUBLISHED_METRICS = {
     "SP500": {
