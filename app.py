@@ -88,7 +88,7 @@ def forecast_chart(prices: pd.DataFrame, result: dict, lead: int, label: str):
 if page == "Live Demo":
     st.subheader("Explore a forecast using a pretrained model")
     st.info("The models were trained before deployment using Yahoo Finance historical index prices. During this demonstration, the models are used only to generate forecasts. No additional training or model updates take place.")
-    st.caption("**How this differs from the conference paper:** This pretrained demonstration uses price history and 20-day realized volatility. VIX, Treasury yields, and the other macroeconomic predictors used in the published research are not inputs to this deployed model. Its results should not be treated as a replication of the paper's reported accuracy.")
+    st.caption("**Deployment model:** This conference demonstration uses a pretrained model based on market-price dynamics and realized volatility. The published study evaluates a broader research framework that also includes additional volatility and macroeconomic predictors.")
     fred_notice()
     st.caption("A FRED API key does not by itself grant additional rights to third-party copyrighted index data. Use the data only as permitted by FRED and the relevant index owners.")
     key, agree = fred_credentials()
