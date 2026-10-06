@@ -1,8 +1,9 @@
-streamlit>=1.39,<2
-pandas>=2.2,<3
-numpy>=1.26,<3
-scikit-learn>=1.5,<2
-xgboost>=2.1,<4
+streamlit==1.56.0
+pandas==2.3.3
+numpy==2.3.5
+scikit-learn==1.7.2
+xgboost==3.2.0
+scipy==1.16.3
+joblib==1.5.3
 plotly>=5.24,<7
 requests>=2.32,<3
-joblib>=1.4,<2
