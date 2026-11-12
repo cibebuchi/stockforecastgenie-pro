@@ -65,7 +65,7 @@ st.markdown(
 
 page = st.radio(
     "Navigation",
-    ["Live Demo", "Market Trends", "Market News", "Published Evidence", "Method & Terms"],
+    ["Live Demo", "Model Evaluation", "Market Trends", "Market News", "Published Evidence", "Method & Terms"],
     horizontal=True,
     label_visibility="collapsed",
 )
@@ -335,6 +335,9 @@ if page == "Live Demo":
             except (DataSourceError, FileNotFoundError, ValueError, AttributeError) as exc:
                 st.error(str(exc))
 
+elif page == "Model Evaluation":
+    from historical_evaluation.ui import render as render_historical_evaluation
+    render_historical_evaluation()
 elif page == "Market Trends":
     st.subheader("Explore recent market movements")
     st.caption(
